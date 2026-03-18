@@ -1,0 +1,51 @@
+{
+    "Success": true,
+    "Message": "",
+    "Member": {
+        "4": {
+            "Status": 1,
+            "Img": "1",
+            "Name": "Showroom",
+            "DeviceType": 2,
+            "Device": {
+                "1": {
+                    "DeviceStyleID": 1,
+                    "DeviceName": "Bedroom air",
+                    "RoomID": 1,
+                    "Control": {
+                        "0": {
+                            "ControlType": 0,
+                            "Label": "online",
+                            "Value": 1
+                        },
+                        "1": {
+                            "ControlType": 0,
+                            "Label": "status",
+                            "Value": 0
+                        },
+                        "2": {
+                            "ControlType": 1,
+                            "Label": "temp",
+                            "Value": 20
+                        },
+                        "3": {
+                            "ControlType": 1,
+                            "Label": "speed",
+                            "Value": 3
+                        },
+                        "4": {
+                            "ControlType": 1,
+                            "Label": "temp min",
+                            "Value": 18
+                        },
+                        "5": {
+                            "ControlType": 1,
+                            "Label": "temp max",
+                            "Value": 32
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
