@@ -23,6 +23,24 @@ const userlogin = async (_username) => {
   }
 };
 
+const memberIDlogin = async (_memberIDlogin) => {
+  if (!_memberIDlogin) {
+    console.log("memberID missing");
+  }
+  //query db
+  try {
+    const sql = `
+      SELECT * FROM "member"  where devicetype = 1 and memberid = ?
+    `;
+
+    const rows = await db.select(sql, [_memberIDlogin]);
+
+    return { success: true, response: rows, error: null };
+  } catch (err) {
+    return { success: false, response: null, error: err };
+  }
+};
+
 ///app/v3s/GetFloorPlan
 
 const getFloorPlan = async (memberID) => {
@@ -268,8 +286,8 @@ const deleteAccount = async (memberID) => {
 const getFriendlistInHome = async (HomeID) => {
   try {
     const sql = `SELECT f.member_id as memberID, m.membername as memberName, f.frid as role  FROM "friends" f 
-                 INNER JOIN  "member" m  ON m.memberid = f.member_id and f.member_id!= ?;`;
-    const result = await db.select(sql, [HomeID]);
+                 INNER JOIN  "member" m  ON m.memberid = f.member_id and f.member_id!= ? WHERE f.friend_id = ?;`;
+    const result = await db.select(sql, [HomeID, HomeID]);
     return { success: true, response: result, error: null };
   } catch (err) {
     return { success: false, error: err.message };
@@ -288,6 +306,7 @@ const getFriendrolelist = async (memberID) => {
   }
 };
 
+//frid = frindrights id 1 = admin, 2 = control, 3 = view
 const deleteUserInHome = async (memberID, RequestID, homeID) => {
   try {
     const sql = `
@@ -297,10 +316,81 @@ const deleteUserInHome = async (memberID, RequestID, homeID) => {
       AND hm_target.member_id = ?
       AND hm_target.friend_id = ?
       AND hm_req.member_id = ?
-      AND hm_req.friend_id = 1;
+      AND hm_req.frid = 1;
     `;
     await db.remove(sql, [memberID, homeID, RequestID]);
     return { success: true, error: null };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+};
+
+const getRoleInformation = async (memberID, homeID) => {
+  try {
+    const sql = `select  frid as role  from friends f  where f.friend_id = ? and f.member_id = ?`;
+    const result = await db.select(sql, [homeID, memberID]);
+    if (result.length === 0) {
+      return { success: false, error: "User is not a member of the home" };
+    }
+    return { success: true, response: result, error: null };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+};
+
+const changeUsername = async (memberID, newUsername) => {
+  try {
+    const sql = `
+      UPDATE "member" m SET username = ? WHERE m.memberid = ?
+    `;
+    await db.update(sql, [newUsername, memberID]);
+    return { success: true, error: null };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+};
+
+const changeMemberName = async (memberID, newMemberName) => {
+  try {
+    const sql = `
+      UPDATE "member" m SET membername = ? WHERE m.memberid = ?
+    `;
+    await db.update(sql, [newMemberName, memberID]);
+    return { success: true, error: null };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+};
+
+const changeUserPassword = async (memberID, newPassword) => {
+  try {
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    const sql = `
+      UPDATE "member" m SET password = ? WHERE m.memberid = ?
+    `;
+    await db.update(sql, [hashedPassword, memberID]);
+    return { success: true, error: null };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+};
+
+const addmapfriendly = async (MemberID, HomeID, Role) => {
+  try {
+    const sql = `
+          INSERT INTO friends (member_id, friend_id, frid)
+            SELECT ?, ?, ?
+            FROM member m
+            WHERE m.memberid = ?
+              AND m.devicetype = 1
+            ON CONFLICT (member_id, friend_id)
+            DO NOTHING
+            RETURNING *;
+      `;
+    const result = await db.insert(sql, [MemberID, HomeID, Role, MemberID]);
+    return { success: true, response: result, error: null };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -314,4 +404,10 @@ module.exports = {
   getFriendlistInHome,
   getFriendrolelist,
   deleteUserInHome,
+  getRoleInformation,
+  changeUsername,
+  memberIDlogin,
+  changeMemberName,
+  changeUserPassword,
+  addmapfriendly,
 };
