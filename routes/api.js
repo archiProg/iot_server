@@ -1,6 +1,7 @@
 var express = require("express");
 var axios = require("axios");
 var router = express.Router();
+const { v4: uuidv4 } = require("uuid");
 const {
   userlogin,
   getFloorPlan,
@@ -14,10 +15,12 @@ const {
   changeMemberName,
   changeUserPassword,
   addmapfriendly,
+  changeHomename
 } = require("../services/db_api");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const e = require("express");
+const { login } = require("../services/db_work");
 
 const StatusCode = {
   FAIL: 0, // system fail / unknown error
@@ -42,7 +45,7 @@ const verifyToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "secretkey");
-    console.log(decoded);
+    //console.log(decoded);
 
     req.user = decoded;
 
@@ -113,8 +116,17 @@ router.post("/auth/Login", async (req, res) => {
       }
 
       const payload = {
-        user_id: user.id,
-        username: user.username,
+        id: uuidv4(),
+        Member: user.memberid,
+        Username: user.username,
+        Member: user.Member,
+        Name: user.Name,
+        Email: user.Email,
+        Gateway: user.devicetype != 1 ? user.id : 0,
+        User: `${user.username}.${user.username}`,
+        Scopes: [],
+        Roles: ["Member", "Monitor"],
+        AdminRole: 0,
       };
 
       const accessToken = jwt.sign(
@@ -191,7 +203,20 @@ router.post("/v3/login", async (req, res) => {
 
       const response = {
         message: "Login successful",
-        member: result.response[0],
+        //member: result.response[0],
+        member: {
+          memberid: result.response[0].memberid,
+          owner: result.response[0].owner,
+          devicetype: result.response[0].devicetype,
+          username: result.response[0].username,
+          membername: result.response[0].membername,
+          email: result.response[0].email,
+          mobilephone: result.response[0].mobilephone,
+          img: result.response[0].img,
+          created: result.response[0].created,
+          state: result.response[0].state,
+          description: result.response[0].description,
+        },
         status: StatusCode.SUCCESS,
         error: null,
       };
@@ -313,7 +338,7 @@ router.post("/devices", async (req, res) => {
 });
 
 //app/gettime
-router.post("/gettime", verifyToken, async (req, res) => {
+router.post("/gettime", async (req, res) => {
   try {
     return res.status(200).json({
       status: StatusCode.SUCCESS,
@@ -514,8 +539,10 @@ router.post("/removefamily", verifyToken, async (req, res) => {
   try {
     const deleteResult = await deleteUserInHome(MemberID, RequestID, HomeID);
     if (deleteResult.success) {
+      console.log(`removefamily.res:${JSON.stringify(deleteResult)}`);
+
       axios
-        .post("http://192.168.1.20:5001/app/tenantupdate", {
+        .post("http://127.0.0.1:5001/api/tenantupdate", {
           memberid: MemberID,
           gatewayid: HomeID,
           action: "remove",
@@ -524,14 +551,17 @@ router.post("/removefamily", verifyToken, async (req, res) => {
           return res.status(200).json({
             status: StatusCode.SUCCESS,
             Message: "Success",
-            Role: result.response[0] ? result.response[0].role : 0,
+            //Role: deleteResult.response[0] ? deleteResult.response[0].role : 0,
           });
         })
         .catch((error) => {
+          console.log(`removefamily.error:${error}`);
+
           return res.status(200).json({
             status: StatusCode.SERVER_ERROR,
             message: error || "axios error",
             error: error,
+            err: "c",
           });
         });
     } else {
@@ -540,15 +570,16 @@ router.post("/removefamily", verifyToken, async (req, res) => {
         message:
           deleteResult.error.message || "Failed to remove user from home",
         error: deleteResult.error,
+        err: "b",
       });
     }
   } catch (err) {
-    console.log(err.message);
-
+    console.log(`removefamily.catch:${err}`);
     return res.status(500).json({
       status: StatusCode.SERVER_ERROR,
       message: err.message || "Server error",
       error: err.message,
+      err: "a",
     });
   }
 });
@@ -738,6 +769,41 @@ router.post("/changepassword", verifyToken, async (req, res) => {
   }
 });
 
+//app/changehomename
+router.post("/changehomename", verifyToken, async (req, res) => {
+  const { MemberID, HomeID, Name } = req.body;
+  if (MemberID == null || HomeID == null || Name == null) {
+    return res.status(200).json({
+      status: StatusCode.INVALID,
+      message: "MemberID, HomeID or Name missing",
+      error: "MemberID, HomeID or Name missing",
+    });
+  }
+
+  try {
+    const changeHomenameResult = await changeHomename(MemberID, HomeID, Name);
+
+    if (changeHomenameResult.success) {
+      return res.status(200).json({
+        status: StatusCode.SUCCESS,
+        message: "Success",
+      });
+    } else {
+      return res.status(200).json({
+        status: StatusCode.SERVER_ERROR,
+        message: "Failed",
+        error: changeHomenameResult.error,
+      });
+    }
+  } catch  (err){
+    return res.status(500).json({
+      status: StatusCode.SERVER_ERROR,
+      message: err.message || "Server error",
+      error: err.message,
+    });
+  }
+});
+
 //  /app/mapfriendly
 router.post("/mapfriendly", verifyToken, async (req, res) => {
   const { Name, MemberID, GatewayID, Role, DateTimeExpired } = req.body;
@@ -761,7 +827,7 @@ router.post("/mapfriendly", verifyToken, async (req, res) => {
     if (result.success) {
       if (result.response.length > 0) {
         axios
-          .post("http://192.168.1.20:5001/app/tenantupdate", {
+          .post("http://127.0.0.1:5001/app/tenantupdate", {
             memberid: MemberID,
             gatewayid: GatewayID,
             action: "add",
